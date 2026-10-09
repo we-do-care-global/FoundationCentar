@@ -21,6 +21,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # =============================================================================
+LABEL org.opencontainers.image.source="https://github.com/we-do-care-global/foundationcentar"
 # Stage 2: Build Backend TypeScript (AppDeploy SDK compatible)
 # =============================================================================
 FROM node:22-alpine AS backend-ts-builder
