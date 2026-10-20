@@ -65,7 +65,7 @@ export const ws = {
   connect() {
     console.log('[Mock WS] connect');
     return {
-      onMessage: (cb: any) => {},
+      onMessage: (_cb: any) => {},
       disconnect: () => {},
     };
   },

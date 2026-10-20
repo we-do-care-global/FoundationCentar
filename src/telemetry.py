@@ -1,11 +1,11 @@
-"""AtlanTida OS - Telemetry API (FastAPI)."""
+"""FoundationCentar - Telemetry API (FastAPI)."""
 
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 # Prometheus metrics
 REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
@@ -14,7 +14,7 @@ SKILL_EXECUTIONS = Counter("skill_executions_total", "Total skill executions", [
 SKILL_DURATION = Histogram("skill_execution_duration_seconds", "Skill execution duration", ["skill"])
 
 app = FastAPI(
-    title="AtlanTida OS Telemetry",
+    title="FoundationCentar Telemetry",
     description="Real-time agent health monitoring and skill execution tracking",
     version="1.0.0",
 )
@@ -53,7 +53,7 @@ async def metrics():
 
 @app.get("/")
 async def root():
-    return {"message": "AtlanTida OS API is running"}
+    return {"message": "FoundationCentar API is running"}
 
 
 @app.get("/health")

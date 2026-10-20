@@ -4,11 +4,16 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+
 permissions:
   contents: read
   packages: write
+
 jobs:
   docker-build-and-push:
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,13 +27,13 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PAT }}
 
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository_owner }}/foundationcentar
           tags: |
             type=sha
             type=ref,event=branch
