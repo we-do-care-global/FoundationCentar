@@ -1,0 +1,130 @@
+name: Zenodo publishing
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to deposit (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  zenodo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Verify required secret is present
+        env:
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+        run: |
+          if [ -z "$ZENODO_TOKEN" ]; then
+            echo "::error::ZENODO_TOKEN is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Build the release archive
+        id: archive
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          name="FoundationCentar-${TAG}.zip"
+          zip -r "$name" . \
+            -x '.git/*' -x 'node_modules/*' -x '.github/*' \
+               '*/.DS_Store' -x '*.log'
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Archive: $name ($(stat -c%s "$name") bytes)"
+
+      - name: Publish to Zenodo
+        id: deposit
+        env:
+          ZENODO_SANDBOX: "false"
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+          ARCHIVE_NAME: ${{ steps.archive.outputs.name }}
+        run: |
+          set -euo pipefail
+          if [ "$ZENODO_SANDBOX" = "true" ]; then
+            API="https://sandbox.zenodo.org/api"
+          else
+            API="https://zenodo.org/api"
+          fi
+
+          python - <<'PY' > metadata.json
+          import json
+          with open('.zenodo.json', encoding='utf-8') as fh:
+              md = json.load(fh)
+          for creator in md.get('creators', []):
+              creator.pop('affiliation', None)
+          json.dump({'metadata': md}, open('/dev/stdout', 'w'), ensure_ascii=False)
+          PY
+
+          code=$(curl -sS -o deposition.json -w '%{http_code}' \
+            -X POST "$API/deposit/depositions" \
+            -H "Authorization: Bearer $ZENODO_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @metadata.json)
+          if [ "$code" != "201" ]; then
+            echo "::error::deposition creation failed (HTTP $code)"
+            cat deposition.json
+            exit 1
+          fi
+          bucket=$(python -c "import json;print(json.load(open('deposition.json'))['links']['bucket'])")
+          id=$(python -c "import json;print(json.load(open('deposition.json'))['id'])")
+          echo "Deposition $id created"
+
+          code=$(curl -sS -o upload.json -w '%{http_code}' \
+            -X PUT --upload-file "$ARCHIVE_NAME" \
+            -H "Authorization: Bearer $ZENODO_TOKEN" \
+            "$bucket/$ARCHIVE_NAME")
+          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+            echo "::error::archive upload failed (HTTP $code)"
+            cat upload.json
+            exit 1
+          fi
+          echo "Uploaded $ARCHIVE_NAME ($(stat -c%s "$ARCHIVE_NAME") bytes)"
+
+          code=$(curl -sS -o published.json -w '%{http_code}' \
+            -X POST "$API/deposit/depositions/$id/actions/publish" \
+            -H "Authorization: Bearer $ZENODO_TOKEN")
+          if [ "$code" != "202" ]; then
+            echo "::error::publish failed (HTTP $code)"
+            cat published.json
+            exit 1
+          fi
+
+          doi=$(python -c "import json;print(json.load(open('published.json'))['doi'])")
+          echo "doi=$doi" >> "$GITHUB_OUTPUT"
+          echo "DOI: $doi"
+
+      - name: Record the minted DOI on the release
+        if: always() && steps.deposit.outputs.doi != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          DOI: ${{ steps.deposit.outputs.doi }}
+        run: |
+          set -euo pipefail
+          existing=$(gh release view "$TAG" --repo "$REPO" --json body --jq .body 2>/dev/null || true)
+          if ! printf '%s' "$existing" | grep -q "$DOI"; then
+            {
+              [ -n "$existing" ] && printf '%s\n\n' "$existing"
+              echo "Archived on Zenodo: https://doi.org/$DOI"
+            } > notes.md
+            gh release edit "$TAG" --repo "$REPO" --notes-file notes.md
+          fi
+          echo "DOI $DOI recorded on release $TAG"
