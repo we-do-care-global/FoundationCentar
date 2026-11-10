@@ -1,6 +1,6 @@
 """FoundationCentar - Telemetry API (FastAPI)."""
 
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
