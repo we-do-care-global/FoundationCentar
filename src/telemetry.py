@@ -1,6 +1,6 @@
 """FoundationCentar - Telemetry API (FastAPI)."""
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
@@ -114,7 +114,7 @@ async def execute_skill(request: SkillRequest):
     # Create a mock input
     input_data = MeterAuditInput(
         meter_id="meter-001",
-        reading_date=datetime.now(timezone.utc).isoformat(),
+        reading_date=datetime.now(UTC).isoformat(),
         consumption_kwh=400,
         tariff_zone=request.domain,
     )

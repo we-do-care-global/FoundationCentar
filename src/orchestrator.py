@@ -2,7 +2,7 @@
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 
@@ -18,7 +18,7 @@ class AtState:
 
     def transition(self, new_status: str) -> None:
         self.status = new_status
-        self.last_executed = datetime.now(timezone.utc)
+        self.last_executed = datetime.now(UTC)
         if new_status == "running":
             self.execution_count += 1
 
@@ -159,7 +159,7 @@ def run_cyclical_execution(interval_seconds: int = 300) -> None:
             print(f"\n--- Round {round_num} ---")
             for domain, chief in brain.chiefs.items():
                 print(f"[{domain}] {chief.name}: {chief.state.status}")
-            print(f"Round {round_num} complete at {datetime.now(timezone.utc).isoformat()}")
+            print(f"Round {round_num} complete at {datetime.now(UTC).isoformat()}")
             asyncio.run(asyncio.sleep(interval_seconds))
     except KeyboardInterrupt:
         print("\nFoundationCentar: Shutting down gracefully.")
